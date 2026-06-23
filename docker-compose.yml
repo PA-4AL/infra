@@ -1,0 +1,89 @@
+# ============================================================
+# PA Tournament — Stack locale complète
+# Prérequis : les repos backend/, worker/, frontend/ et infra/
+# clonés côte à côte dans le même dossier parent.
+#
+#   docker compose up -d                  # db + keycloak
+#   docker compose --profile full up -d   # + backend, worker, frontend
+# ============================================================
+
+name: pa-tournament
+
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-pa}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-pa}
+      POSTGRES_DB: ${POSTGRES_DB:-pa}
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./db/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+      - pa-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-pa}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.1
+    command: start-dev --import-realm --http-port=8081
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_ADMIN:-admin}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-admin}
+      # SSO fédéré (spec §4.5) — renseigner dans infra/.env
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      DISCORD_CLIENT_ID: ${DISCORD_CLIENT_ID:-}
+      DISCORD_CLIENT_SECRET: ${DISCORD_CLIENT_SECRET:-}
+    ports:
+      - "8081:8081"
+    volumes:
+      - ./keycloak/realm-pa-tournament.json:/opt/keycloak/data/import/realm-pa-tournament.json:ro
+      - ./keycloak/themes/pa:/opt/keycloak/themes/pa:ro
+
+  backend:
+    profiles: ["full"]
+    build:
+      context: ../backend
+      dockerfile: ../infra/docker/backend.Dockerfile
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/${POSTGRES_DB:-pa}
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-pa}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-pa}
+      KEYCLOAK_ISSUER_URI: http://keycloak:8081/realms/pa-tournament
+    ports:
+      - "8080:8080"
+    depends_on:
+      db:
+        condition: service_healthy
+      keycloak:
+        condition: service_started
+
+  worker:
+    profiles: ["full"]
+    build:
+      context: ../worker
+      dockerfile: ../infra/docker/worker.Dockerfile
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-pa}:${POSTGRES_PASSWORD:-pa}@db:5432/${POSTGRES_DB:-pa}
+    depends_on:
+      db:
+        condition: service_healthy
+
+  frontend:
+    profiles: ["full"]
+    build:
+      context: ../frontend
+      args:
+        VITE_API_URL: http://localhost:8080
+        VITE_KEYCLOAK_URL: http://localhost:8081
+    ports:
+      - "3000:8080"
+    depends_on:
+      - backend
+
+volumes:
+  pa-db-data:
