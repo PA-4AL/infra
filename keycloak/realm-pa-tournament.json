@@ -1,0 +1,102 @@
+{
+  "realm": "pa-tournament",
+  "enabled": true,
+  "displayName": "PA Tournament",
+  "displayNameHtml": "<div style=\"font-weight:900;font-size:28px;letter-spacing:.02em\">PA <span style=\"color:#FF5C28\">TOURNAMENT</span></div>",
+  "loginTheme": "pa",
+  "registrationAllowed": true,
+  "registrationEmailAsUsername": false,
+  "loginWithEmailAllowed": true,
+  "resetPasswordAllowed": true,
+  "roles": {
+    "realm": [
+      { "name": "player", "description": "Joueur : inscription, profil, participation" },
+      { "name": "organizer", "description": "Organisateur : création et administration de tournois" },
+      { "name": "admin", "description": "Admin plateforme : modération globale" }
+    ]
+  },
+  "defaultRole": {
+    "name": "default-roles-pa-tournament",
+    "composite": true
+  },
+  "identityProviders": [
+    {
+      "alias": "google",
+      "displayName": "Google",
+      "providerId": "google",
+      "enabled": true,
+      "trustEmail": true,
+      "config": {
+        "clientId": "${env.GOOGLE_CLIENT_ID:}",
+        "clientSecret": "${env.GOOGLE_CLIENT_SECRET:}",
+        "defaultScope": "openid profile email"
+      }
+    },
+    {
+      "alias": "discord",
+      "displayName": "Discord",
+      "providerId": "oidc",
+      "enabled": true,
+      "trustEmail": false,
+      "config": {
+        "clientId": "${env.DISCORD_CLIENT_ID:}",
+        "clientSecret": "${env.DISCORD_CLIENT_SECRET:}",
+        "authorizationUrl": "https://discord.com/oauth2/authorize",
+        "tokenUrl": "https://discord.com/api/oauth2/token",
+        "userInfoUrl": "https://discord.com/api/users/@me",
+        "defaultScope": "identify email",
+        "clientAuthMethod": "client_secret_post"
+      }
+    }
+  ],
+  "users": [
+    {
+      "username": "demo",
+      "enabled": true,
+      "email": "demo@pa.local",
+      "emailVerified": true,
+      "firstName": "Demo",
+      "lastName": "Player",
+      "credentials": [{ "type": "password", "value": "demo1234" }],
+      "realmRoles": ["player", "organizer"]
+    },
+    {
+      "username": "joueur",
+      "enabled": true,
+      "email": "joueur@pa.local",
+      "emailVerified": true,
+      "firstName": "Joueur",
+      "lastName": "Test",
+      "credentials": [{ "type": "password", "value": "joueur1234" }],
+      "realmRoles": ["player"]
+    }
+  ],
+  "clients": [
+    {
+      "clientId": "pa-frontend",
+      "name": "PA Tournament — Frontend",
+      "protocol": "openid-connect",
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "attributes": {
+        "pkce.code.challenge.method": "S256"
+      },
+      "redirectUris": [
+        "http://localhost:5173/*",
+        "http://localhost:3000/*"
+      ],
+      "webOrigins": ["http://localhost:5173", "http://localhost:3000"]
+    },
+    {
+      "clientId": "pa-backend",
+      "name": "PA Tournament — Backend API",
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "bearerOnly": false,
+      "serviceAccountsEnabled": true,
+      "standardFlowEnabled": false,
+      "secret": "change-me-in-prod"
+    }
+  ]
+}
