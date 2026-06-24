@@ -1,0 +1,111 @@
+/* ============================================================
+   PA Tournament — thème de connexion Keycloak
+   Aligné sur le design system du frontend (pa.css)
+   ============================================================ */
+
+:root {
+  --pa-primary: #1437D9;
+  --pa-primary-dark: #0E27A8;
+  --pa-primary-light: #3B5BFF;
+  --pa-accent: #FF5C28;
+  --pa-bg: #090A14;
+  --pa-card: #161726;
+  --pa-fg: #E8ECF8;
+  --pa-muted: #8A93B8;
+  --pa-border: rgba(255, 255, 255, .07);
+}
+
+body, .login-pf body, .pf-v5-c-login {
+  background:
+    radial-gradient(900px 500px at 12% 8%, rgba(20, 55, 217, .35), transparent 60%),
+    radial-gradient(700px 600px at 95% 100%, rgba(255, 92, 40, .22), transparent 55%),
+    var(--pa-bg) !important;
+  color: var(--pa-fg);
+}
+
+/* Carte centrale */
+.pf-v5-c-login__main,
+.card-pf {
+  background: var(--pa-card) !important;
+  border: 1px solid var(--pa-border);
+  border-radius: 12px;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, .6);
+  color: var(--pa-fg);
+}
+
+/* Titres et textes */
+.pf-v5-c-login__main-header h1,
+.pf-v5-c-title,
+#kc-page-title {
+  color: var(--pa-fg) !important;
+  text-transform: uppercase;
+  font-weight: 800;
+  letter-spacing: .01em;
+}
+
+.pf-v5-c-login__main label,
+.pf-v5-c-form__label-text,
+.pf-v5-c-login__main-footer-band,
+.pf-v5-c-login__main a:not(.pf-v5-c-button) {
+  color: var(--pa-fg) !important;
+}
+
+.pf-v5-c-login__main a:not(.pf-v5-c-button) {
+  color: var(--pa-primary-light) !important;
+}
+
+/* Champs */
+.pf-v5-c-form-control,
+.pf-v5-c-login__main input[type="text"],
+.pf-v5-c-login__main input[type="password"],
+.pf-v5-c-login__main input[type="email"] {
+  background: #1A1B2E !important;
+  border: 1px solid var(--pa-border) !important;
+  border-radius: 6px;
+  color: var(--pa-fg) !important;
+}
+.pf-v5-c-form-control:focus-within,
+.pf-v5-c-login__main input:focus {
+  border-color: var(--pa-primary-light) !important;
+  box-shadow: 0 0 0 3px rgba(59, 91, 255, .45) !important;
+  outline: none;
+}
+
+/* Bouton principal */
+.pf-v5-c-button.pf-m-primary {
+  background: var(--pa-primary) !important;
+  border-radius: 6px;
+  font-weight: 600;
+}
+.pf-v5-c-button.pf-m-primary:hover {
+  background: var(--pa-primary-dark) !important;
+}
+
+/* En-tête (logo / nom du realm) */
+#kc-header-wrapper,
+.pf-v5-c-login__header {
+  color: var(--pa-fg);
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: .02em;
+}
+
+/* Boutons des fournisseurs sociaux (Google / Discord) */
+.pf-v5-c-login__main-footer-links-item a,
+.kc-social-provider-name {
+  color: var(--pa-fg) !important;
+}
+.pf-v5-c-login__main-footer-links-item .pf-v5-c-button {
+  background: #1A1B2E !important;
+  border: 1px solid var(--pa-border) !important;
+  color: var(--pa-fg) !important;
+  border-radius: 6px;
+}
+.pf-v5-c-login__main-footer-links-item .pf-v5-c-button:hover {
+  background: #22243A !important;
+}
+
+/* Alertes */
+.pf-v5-c-alert {
+  border-radius: 8px;
+}
