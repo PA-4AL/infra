@@ -49,7 +49,10 @@ TOKEN=$(curl -sS --fail-with-body \
   -d "client_id=admin-cli" -d "username=$KC_ADMIN" \
   --data-urlencode "password=$KC_ADMIN_PASSWORD" -d "grant_type=password" \
   "$KEYCLOAK_URL/realms/master/protocol/openid-connect/token" | jq -r .access_token)
-[ "$TOKEN" != "null" ] && [ -n "$TOKEN" ] || { echo "échec de l'authentification admin" >&2; exit 1; }
+if [ -z "$TOKEN" ] || [ "$TOKEN" = "null" ]; then
+  echo "échec de l'authentification admin sur $KEYCLOAK_URL" >&2
+  exit 1
+fi
 
 # ---------------------------------------------------------------------------
 # 1) Client public : URIs de redirection + origines CORS

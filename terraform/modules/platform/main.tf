@@ -238,10 +238,13 @@ module "backend" {
   startup_timeout_seconds = 180
 
   env = {
-    SPRING_DATASOURCE_URL       = "jdbc:postgresql://${module.database.private_ip}:5432/pa"
-    SPRING_DATASOURCE_USERNAME  = module.database.app_user
-    KEYCLOAK_ISSUER_URI         = "${local.auth_origin}/realms/pa-tournament"
-    APP_CORS_ALLOWED_ORIGINS    = local.app_origin
+    SPRING_DATASOURCE_URL      = "jdbc:postgresql://${module.database.private_ip}:5432/pa"
+    SPRING_DATASOURCE_USERNAME = module.database.app_user
+    KEYCLOAK_ISSUER_URI        = "${local.auth_origin}/realms/pa-tournament"
+    APP_CORS_ALLOWED_ORIGINS   = local.app_origin
+    # Messagerie avec le worker : publication des demandes et vérification des
+    # jetons OIDC des livraisons push sur /internal/jobs/callback.
+    APP_PUBSUB_ENABLED          = "true"
     GCP_PROJECT_ID              = var.project_id
     PUBSUB_TOPIC_DEMANDS        = local.topic_demandes
     PUBSUB_PUSH_AUDIENCE        = "${local.api_origin}/internal/jobs/callback"

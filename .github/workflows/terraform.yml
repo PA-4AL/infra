@@ -36,6 +36,10 @@ jobs:
   terraform:
     name: ${{ github.event_name == 'pull_request' && 'plan (prod)' || format('{0} ({1})', inputs.action, inputs.environment) }}
     runs-on: ubuntu-latest
+    # Tant que le socle GCP n'est pas provisionné (cf. docs/DEPLOY.md étapes 3 et 4),
+    # la variable de fédération d'identité n'existe pas : le job est ignoré au lieu
+    # d'échouer sur une authentification impossible.
+    if: vars.WIF_PROVIDER != ''
     # Sur apply, l'environnement GitHub permet d'exiger une validation manuelle.
     environment: ${{ github.event_name == 'workflow_dispatch' && inputs.action == 'apply' && 'production' || '' }}
 

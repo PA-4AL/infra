@@ -116,15 +116,45 @@ séparation, chaque `terraform apply` ferait régresser la production.
 
 ## Flux d'un import Excel
 
-1. L'organisateur dépose un `.xlsx` ; le backend crée une ligne `jobs` et publie
+1. `POST /api/teams/import` (rôle `organizer` ou `admin`) avec
+   `{tournamentType, fileBase64}`. Le backend trace une ligne `jobs`, publie
    `{task_id, task_type: "import_excel", payload: {tournament_type, file_base64}}`
-   sur `topic-demandes`.
+   sur `topic-demandes`, et répond immédiatement le job en `processing`.
 2. Le worker consomme, parse le fichier selon le type de tournoi
-   (`worker/src/parser/`), regroupe les joueurs par équipe et publie sa réponse
-   sur `topic-reponses`.
-3. Pub/Sub pousse la réponse sur `POST /internal/jobs/callback` du backend, qui
-   met à jour le statut du job et crée les équipes.
-4. Après 5 échecs, le message part en file de rebut plutôt que de boucler.
+   (`esport_5v5` ou `football_11v11`, cf. `worker/src/parser/`), regroupe les
+   joueurs par équipe et publie sa réponse sur `topic-reponses`.
+3. Pub/Sub pousse la réponse sur `POST /internal/jobs/callback`, qui met à jour
+   le statut du job et enregistre le résultat.
+4. Le frontend suit l'avancement via `GET /api/jobs/{id}` (`pending` →
+   `processing` → `done` / `failed`, avec le message d'erreur du worker).
+5. Après 5 échecs, le message part en file de rebut plutôt que de boucler.
+
+### Sécurité de l'endpoint de callback
+
+`/internal/jobs/callback` est exposé publiquement (Pub/Sub doit l'atteindre)
+mais protégé par une chaîne de sécurité distincte de celle de l'API :
+
+| Contrôle | Où |
+|---|---|
+| Signature du jeton, émetteur `accounts.google.com` | `SecurityConfig.internalFilterChain` |
+| Audience = URL exacte du callback | idem (configurée dans l'abonnement push) |
+| Adresse du compte de service appelant | `JobCallbackController.verifyCaller` |
+
+Les deux émetteurs (Google pour le callback, Keycloak pour l'API) ont chacun
+leur décodeur : ils ne doivent surtout pas être confondus.
+
+Codes de retour choisis en connaissance du comportement de Pub/Sub : `2xx`
+acquitte, `4xx` abandonne le message, `5xx` demande une nouvelle livraison. Un
+message illisible ou destiné à un job inconnu renvoie donc un code final — sinon
+il serait rejoué jusqu'à saturer la file de rebut. La reprise reste idempotente :
+un job déjà `done` ou `failed` ignore une seconde livraison.
+
+### Contrainte de taille
+
+Les fichiers circulent en base64 **dans le message** : la limite Pub/Sub de 10 Mo
+par message est vérifiée côté backend (`413` au-delà de ~9 Mo de base64, soit
+~6,7 Mo de fichier). Au-delà, il faudra passer par un bucket Cloud Storage et ne
+transmettre que l'URL — ce que la colonne `jobs.file_url` prévoit déjà.
 
 ## Limites connues
 
