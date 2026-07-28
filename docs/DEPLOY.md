@@ -233,6 +233,34 @@ curl -s "$(terraform output -json urls | python3 -c 'import json,sys;print(json.
 # → ok
 ```
 
+### Seconde passe : les vraies URLs (obligatoire sans domaine)
+
+Le backend a besoin de l'origine du frontend (CORS) et le frontend de celle du
+backend (appels API) : Terraform refuserait ce cycle, les URLs ne peuvent donc
+pas être lues depuis les ressources. Tant qu'aucun domaine n'est configuré, il
+faut les reporter à la main après le premier apply — les URLs Cloud Run **ne sont
+pas devinables** (certains projets utilisent l'ancien format
+`service-xxxxxxxxxx-ew.a.run.app` au lieu de `service-NUMERO.region.run.app`).
+
+```bash
+terraform output -json urls        # relever frontend / backend / keycloak
+```
+
+Reporter les trois valeurs dans `terraform.tfvars` :
+
+```hcl
+app_origin_override  = "https://pa-prod-frontend-xxxxxxxxxx-ew.a.run.app"
+api_origin_override  = "https://pa-prod-backend-xxxxxxxxxx-ew.a.run.app"
+auth_origin_override = "https://pa-prod-keycloak-xxxxxxxxxx-ew.a.run.app"
+```
+
+puis `terraform apply` à nouveau : les services repartent avec les bonnes URLs
+(config runtime du frontend, CORS et issuer du backend, hostname de Keycloak).
+
+Cette étape **disparaît** dès que `domain` est renseigné (étape 8) : les origines
+sont alors dérivées du domaine, sans aucune ambiguïté. Les overrides peuvent être
+supprimés à ce moment-là.
+
 > Si le backend reste en erreur, c'est presque toujours la base : vérifier que
 > l'IP privée est bien injectée (`gcloud run services describe pa-prod-backend
 > --region europe-west1 --format='value(spec.template.spec.containers[0].env)'`)
@@ -381,6 +409,9 @@ Ordre conseillé pour une montée de version globale :
 |---|---|---|
 | `Permission denied` sur `terraform apply` en pipeline | La variable `WIF_SA_TERRAFORM` manque, ou le repo n'est pas autorisé dans le provider WIF | Vérifier `gh variable list --repo PA-4AL/infra` et la condition `assertion.repository_owner` du bootstrap |
 | Cloud Run : « Image not found » | L'étape 5 n'a pas été faite avant l'étape 6 | Relancer la CI, puis `terraform apply` |
+| `Invalid Tier (db-f1-micro) for (ENTERPRISE_PLUS) Edition` | L'API Cloud SQL a choisi l'édition Enterprise Plus, incompatible avec les gabarits à cœur partagé | Déjà corrigé dans le module (`edition = "ENTERPRISE"`). Si l'erreur revient, vérifier que ce champ n'a pas été retiré |
+| `Value for undeclared variable` au `plan` | Une variable a été ajoutée à `terraform.tfvars` sans être déclarée dans `envs/<env>/main.tf` | Déclarer la variable et la câbler au module `platform` — sinon la valeur est **silencieusement ignorée** |
+| Appels API bloqués par CORS, ou login qui boucle, sans domaine | Les URLs injectées ne correspondent pas aux URLs réelles | Faire la « seconde passe » ci-dessus (`*_origin_override`) |
 | Cloud Run : « Container failed to listen on PORT » | Le conteneur ne démarre pas (worker sans identifiants Pub/Sub, backend sans base) | `gcloud run services logs read <service> --region europe-west1` |
 | Backend en 401 sur tous les appels | `KEYCLOAK_ISSUER_URI` ne correspond pas à l'issuer réel du token | Vérifier que `KC_HOSTNAME` et l'URI d'issuer utilisent la même origine (domaine, pas run.app) |
 | Erreur CORS dans le navigateur | `APP_CORS_ALLOWED_ORIGINS` ≠ origine réelle du frontend | Corriger `domain` dans les tfvars et réappliquer |

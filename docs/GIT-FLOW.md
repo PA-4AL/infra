@@ -88,7 +88,15 @@ Règles actives sur les 4 repos (visibles dans *Settings → Rules*) :
 - checks CI obligatoires avant merge ;
 - une approbation minimum ;
 - pas de force-push, pas de suppression de branche ;
-- historique linéaire (squash uniquement).
+- historique linéaire (squash uniquement) ;
+- **les administrateurs du repo peuvent contourner** (`bypass_actors`).
+
+Le contournement admin est un choix assumé : à trois sur le projet, avec des
+créneaux de travail décalés, exiger une relecture pour un correctif de
+production bloquerait la mise en ligne. La règle reste active pour tous — PR
+obligatoire et CI verte — et un contournement est tracé dans l'historique des
+règles (*Settings → Rules → Insights*). En binôme disponible, la relecture reste
+la voie normale.
 
 > Ces règles nécessitent des repos **publics** sur une organisation GitHub
 > gratuite. C'est la raison pour laquelle les 4 repos du projet sont publics —

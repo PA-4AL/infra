@@ -94,3 +94,23 @@ variable "alert_email" {
   type        = string
   default     = null
 }
+
+# Origines réelles, utilisées quand aucun domaine n'est configuré : les URLs
+# Cloud Run ne sont pas devinables de façon fiable (ancien format à hash).
+variable "app_origin_override" {
+  description = "URL réelle du frontend (sortie `urls` du premier apply)"
+  type        = string
+  default     = null
+}
+
+variable "api_origin_override" {
+  description = "URL réelle du backend"
+  type        = string
+  default     = null
+}
+
+variable "auth_origin_override" {
+  description = "URL réelle de Keycloak"
+  type        = string
+  default     = null
+}

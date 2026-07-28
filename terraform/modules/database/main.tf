@@ -45,6 +45,10 @@ resource "google_sql_database_instance" "main" {
 
   settings {
     tier = var.tier
+    # Édition explicite : sans cela l'API bascule sur ENTERPRISE_PLUS, qui
+    # refuse les gabarits à cœur partagé (« Invalid Tier (db-f1-micro) for
+    # (ENTERPRISE_PLUS) Edition »).
+    edition = "ENTERPRISE"
     # Une seule zone : pas de haute disponibilité (doublerait la facture) —
     # acceptable pour un projet scolaire, à documenter comme limite connue.
     availability_type = "ZONAL"

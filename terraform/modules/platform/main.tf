@@ -34,20 +34,35 @@ locals {
   # URLs publiques. Elles ne peuvent PAS être lues depuis les sorties des
   # services : le backend a besoin de l'origine du frontend (CORS) et le
   # frontend de celle du backend (appels API) — Terraform y verrait un cycle.
-  # On utilise donc :
-  #   - le domaine quand il est configuré (cas visé en production) ;
-  #   - sinon le format déterministe des URLs Cloud Run
-  #     (https://SERVICE-NUMERO_DE_PROJET.REGION.run.app), applicable aux
-  #     services créés depuis 2024. Les URLs réelles restent exposées en
-  #     sortie (`urls`) pour vérification après le premier apply.
+  # Ordre de résolution, du plus fiable au moins fiable :
+  #   1. le domaine, quand il est configuré (cas visé en production) ;
+  #   2. les overrides `*_origin_override`, à renseigner après le premier apply
+  #      avec les URLs réelles (sortie `urls`) — c'est la seconde passe
+  #      documentée dans DEPLOY.md ;
+  #   3. à défaut, le format déterministe des URLs Cloud Run. ATTENTION : les
+  #      projets dont les services utilisent l'ancien format à hash
+  #      (SERVICE-xxxxxxxxxx-ew.a.run.app) ne le respectent pas — d'où la
+  #      seconde passe obligatoire tant qu'aucun domaine n'est branché.
   predicted_url = {
     for svc in ["frontend", "backend", "keycloak"] :
     svc => "https://${local.prefix}-${svc}-${data.google_project.current.number}.${var.region}.run.app"
   }
 
-  app_origin  = var.domain == null ? local.predicted_url["frontend"] : "https://app.${var.domain}"
-  api_origin  = var.domain == null ? local.predicted_url["backend"] : "https://api.${var.domain}"
-  auth_origin = var.domain == null ? local.predicted_url["keycloak"] : "https://auth.${var.domain}"
+  app_origin = coalesce(
+    var.domain == null ? null : "https://app.${var.domain}",
+    var.app_origin_override,
+    local.predicted_url["frontend"],
+  )
+  api_origin = coalesce(
+    var.domain == null ? null : "https://api.${var.domain}",
+    var.api_origin_override,
+    local.predicted_url["backend"],
+  )
+  auth_origin = coalesce(
+    var.domain == null ? null : "https://auth.${var.domain}",
+    var.auth_origin_override,
+    local.predicted_url["keycloak"],
+  )
 }
 
 # ---------------------------------------------------------------------------

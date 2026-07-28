@@ -36,6 +36,47 @@ variable "alert_email" {
   default = null
 }
 
+# Origines réelles des services, à renseigner après le premier apply tant
+# qu'aucun domaine n'est branché (cf. docs/DEPLOY.md, seconde passe).
+variable "app_origin_override" {
+  type    = string
+  default = null
+}
+variable "api_origin_override" {
+  type    = string
+  default = null
+}
+variable "auth_origin_override" {
+  type    = string
+  default = null
+}
+
+# Arbitrages de coût, pilotés depuis terraform.tfvars.
+variable "keycloak_min_instances" {
+  type    = number
+  default = 0
+}
+variable "worker_min_instances" {
+  type    = number
+  default = 0
+}
+variable "backend_min_instances" {
+  type    = number
+  default = 0
+}
+variable "max_instances" {
+  type    = number
+  default = 2
+}
+variable "db_tier" {
+  type    = string
+  default = "db-f1-micro"
+}
+variable "db_deletion_protection" {
+  type    = bool
+  default = false
+}
+
 module "platform" {
   source = "../../modules/platform"
 
@@ -47,13 +88,17 @@ module "platform" {
   alert_email              = var.alert_email
 
   # Dev : tout scale à zéro, base non protégée (jetable), plafonds bas.
-  keycloak_min_instances = 0
-  worker_min_instances   = 0
-  backend_min_instances  = 0
-  max_instances          = 2
-  db_tier                = "db-f1-micro"
-  db_deletion_protection = false
+  keycloak_min_instances = var.keycloak_min_instances
+  worker_min_instances   = var.worker_min_instances
+  backend_min_instances  = var.backend_min_instances
+  max_instances          = var.max_instances
+  db_tier                = var.db_tier
+  db_deletion_protection = var.db_deletion_protection
   subnet_cidr            = "10.30.0.0/24"
+
+  app_origin_override  = var.app_origin_override
+  api_origin_override  = var.api_origin_override
+  auth_origin_override = var.auth_origin_override
 }
 
 output "urls" {
