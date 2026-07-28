@@ -116,7 +116,7 @@ séparation, chaque `terraform apply` ferait régresser la production.
 
 ## Flux d'un import Excel
 
-1. `POST /api/teams/import` (rôle `organizer` ou `admin`) avec
+1. `POST /api/v1/teams/import` (rôle `organizer` ou `admin`) avec
    `{tournamentType, fileBase64}`. Le backend trace une ligne `jobs`, publie
    `{task_id, task_type: "import_excel", payload: {tournament_type, file_base64}}`
    sur `topic-demandes`, et répond immédiatement le job en `processing`.
@@ -125,7 +125,7 @@ séparation, chaque `terraform apply` ferait régresser la production.
    joueurs par équipe et publie sa réponse sur `topic-reponses`.
 3. Pub/Sub pousse la réponse sur `POST /internal/v1/jobs/callback`, qui met à jour
    le statut du job et enregistre le résultat.
-4. Le frontend suit l'avancement via `GET /api/jobs/{id}` (`pending` →
+4. Le frontend suit l'avancement via `GET /api/v1/jobs/{id}` (`pending` →
    `processing` → `done` / `failed`, avec le message d'erreur du worker).
 5. Après 5 échecs, le message part en file de rebut plutôt que de boucler.
 
