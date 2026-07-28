@@ -56,6 +56,10 @@ locals {
   # APIs indispensables. Les activer par IAC évite le classique
   # « ça marche chez moi » après une activation manuelle dans la console.
   services = [
+    # iam : gestion des comptes de service (création, IAM des SA). Absente de
+    # cette liste, un apply depuis la pipeline échoue en 403 SERVICE_DISABLED —
+    # invisible en local, où le compte utilisateur emprunte d'autres chemins.
+    "iam.googleapis.com",
     "iamcredentials.googleapis.com",
     "cloudresourcemanager.googleapis.com",
     "artifactregistry.googleapis.com",
