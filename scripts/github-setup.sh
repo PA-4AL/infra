@@ -4,7 +4,8 @@
 #
 #   - variables de repo pour les pipelines (projet, région, fédération d'identité)
 #   - environnement `production` (support d'une validation manuelle)
-#   - règles de protection de `main` : PR obligatoire, CI verte, pas de force-push
+#   - règles de protection de `main` : PR obligatoire, CI verte (le job de qualité
+#     de ci.yml est un check requis), pas de force-push
 #
 # Les SECRETS (Docker Hub) ne sont pas gérés ici : ils se posent à la main pour
 # ne jamais transiter par un fichier ni par l'historique du shell —
@@ -47,11 +48,14 @@ for repo in "${REPOS[@]}"; do
   gh api -X PUT "repos/$ORG/$repo/environments/production" --silent
 
   echo "→ règle de protection de main"
-  # Les checks requis portent le nom des jobs de ci.yml (« Lint et tests »
-  # ou « Lint, types et tests » selon le repo) : on les découvre dynamiquement
-  # pour ne pas bloquer un merge sur un nom de job inexistant.
-  CHECKS=$(gh api "repos/$ORG/$repo/actions/workflows" --jq '.workflows[] | select(.path==".github/workflows/ci.yml") | .id' 2>/dev/null || true)
-  RULES=$(cat <<'JSON'
+  # Nom du job de qualité de ci.yml : c'est le « context » du check requis. Il
+  # diffère d'un repo à l'autre, d'où cette table.
+  case "$repo" in
+    frontend) QUALITY_JOB="Lint, types et tests" ;;
+    infra)    QUALITY_JOB="Lint IAC et scripts" ;;
+    *)        QUALITY_JOB="Lint et tests" ;;
+  esac
+  RULES=$(cat <<JSON
 {
   "name": "main",
   "target": "branch",
@@ -74,6 +78,15 @@ for repo in "${REPOS[@]}"; do
         "required_review_thread_resolution": true,
         "allowed_merge_methods": ["squash"]
       }
+    },
+    { "type": "required_status_checks",
+      "parameters": {
+        "strict_required_status_checks_policy": false,
+        "do_not_enforce_on_create": false,
+        "required_status_checks": [
+          { "context": "$QUALITY_JOB" }
+        ]
+      }
     }
   ]
 }
@@ -88,7 +101,7 @@ JSON
     echo "$RULES" | gh api -X POST "repos/$ORG/$repo/rulesets" --input - --silent
     echo "  règle créée"
   fi
-  [ -n "$CHECKS" ] && echo "  (workflow ci.yml détecté : id $CHECKS — ajouter le check requis dans l'UI après le premier run)"
+  echo "  check requis : « $QUALITY_JOB »"
 done
 
 echo
