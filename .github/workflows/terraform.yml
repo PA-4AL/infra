@@ -1,0 +1,93 @@
+# =============================================================================
+# Pipeline d'infrastructure (IAC).
+#
+# - Pull request      → `terraform plan` publié en commentaire : on voit ce qui
+#                       changerait AVANT de fusionner.
+# - workflow_dispatch → `terraform apply` manuel, environnement au choix.
+#
+# Le déploiement des ressources cloud est volontairement séparé du déploiement
+# des applications : on ne veut pas qu'un correctif de code touche au réseau ou
+# à la base de données.
+# =============================================================================
+name: Terraform
+
+on:
+  pull_request:
+    paths: ['terraform/**']
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Environnement cible
+        type: choice
+        options: [prod, dev]
+        default: prod
+      action:
+        description: Action Terraform
+        type: choice
+        options: [plan, apply]
+        default: plan
+
+permissions:
+  contents: read
+  id-token: write
+  pull-requests: write
+
+jobs:
+  terraform:
+    name: ${{ github.event_name == 'pull_request' && 'plan (prod)' || format('{0} ({1})', inputs.action, inputs.environment) }}
+    runs-on: ubuntu-latest
+    # Sur apply, l'environnement GitHub permet d'exiger une validation manuelle.
+    environment: ${{ github.event_name == 'workflow_dispatch' && inputs.action == 'apply' && 'production' || '' }}
+
+    defaults:
+      run:
+        working-directory: terraform/envs/${{ github.event_name == 'pull_request' && 'prod' || inputs.environment }}
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_version: 1.15.8
+
+      - name: Authentification GCP (Workload Identity Federation)
+        uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: ${{ vars.WIF_PROVIDER }}
+          service_account: ${{ vars.WIF_SA_TERRAFORM }}
+
+      - name: Init
+        run: terraform init -input=false -backend-config="bucket=${{ vars.GCP_PROJECT_ID }}-tfstate"
+
+      - name: Plan
+        id: plan
+        run: |
+          terraform plan -input=false -no-color -out=tfplan | tee plan.txt
+          echo 'summary<<EOF' >> $GITHUB_OUTPUT
+          tail -c 60000 plan.txt >> $GITHUB_OUTPUT
+          echo 'EOF' >> $GITHUB_OUTPUT
+
+      - name: Commentaire du plan sur la PR
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v9
+        with:
+          script: |
+            const body = `#### Terraform plan (prod)\n<details><summary>Voir le plan</summary>\n\n\`\`\`hcl\n${{ steps.plan.outputs.summary }}\n\`\`\`\n</details>`
+            await github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body,
+            })
+
+      - name: Apply
+        if: github.event_name == 'workflow_dispatch' && inputs.action == 'apply'
+        run: terraform apply -input=false -auto-approve tfplan
+
+      - name: Sorties (URLs, DNS, secrets)
+        if: github.event_name == 'workflow_dispatch' && inputs.action == 'apply'
+        run: |
+          echo "### Sorties Terraform" >> $GITHUB_STEP_SUMMARY
+          echo '```json' >> $GITHUB_STEP_SUMMARY
+          terraform output -json | python3 -m json.tool >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
