@@ -213,20 +213,26 @@ module "keycloak" {
   startup_probe_path      = "/realms/pa-tournament/.well-known/openid-configuration"
   startup_timeout_seconds = 240
 
-  env = {
-    KC_DB_URL      = "jdbc:postgresql://${module.database.private_ip}:5432/keycloak"
-    KC_DB_USERNAME = module.database.keycloak_user
-    KC_HOSTNAME    = var.domain == null ? "" : "https://auth.${var.domain}"
-    # Derrière le frontal Cloud Run, Keycloak doit faire confiance aux
-    # en-têtes X-Forwarded-* pour générer les bonnes URLs d'issuer.
-    KC_PROXY_HEADERS                                             = "xforwarded"
-    KC_HTTP_ENABLED                                              = "true"
-    KC_BOOTSTRAP_ADMIN_USERNAME                                  = var.keycloak_admin_username
-    KC_HEALTH_ENABLED                                            = "false"
-    KC_HOSTNAME_STRICT                                           = var.domain == null ? "false" : "true"
-    KC_HOSTNAME_STRICT_HTTPS                                     = "true"
-    KC_SPI_STICKY_SESSION_ENCODER_INFINISPAN_SHOULD_ATTACH_ROUTE = "false"
-  }
+  # Uniquement des options de RUNTIME : l'image est lancée avec
+  # `start --optimized`, et lui passer une option de build (health-enabled,
+  # db, features…) fait sortir le conteneur en exit(2) — vérifié.
+  env = merge(
+    {
+      KC_DB_URL      = "jdbc:postgresql://${module.database.private_ip}:5432/keycloak"
+      KC_DB_USERNAME = module.database.keycloak_user
+      # Derrière le frontal Cloud Run, Keycloak doit faire confiance aux
+      # en-têtes X-Forwarded-* pour générer les bonnes URLs d'issuer.
+      KC_PROXY_HEADERS            = "xforwarded"
+      KC_HTTP_ENABLED             = "true"
+      KC_BOOTSTRAP_ADMIN_USERNAME = var.keycloak_admin_username
+    },
+    # Le hostname n'est fixé que si l'URL publique est connue de façon fiable
+    # (domaine, ou origine relevée après le premier apply). Sinon on désactive
+    # la vérification stricte : un KC_HOSTNAME vide empêche le démarrage.
+    var.domain == null && var.auth_origin_override == null
+    ? { KC_HOSTNAME_STRICT = "false" }
+    : { KC_HOSTNAME = local.auth_origin }
+  )
 
   secret_env = {
     KC_DB_PASSWORD              = module.database.keycloak_password_secret_id
@@ -310,7 +316,7 @@ module "frontend" {
   min_instances      = 0
   max_instances      = var.max_instances
   memory             = "256Mi" # nginx statique
-  startup_probe_path = "/healthz"
+  startup_probe_path = "/health"
 
   # Config injectée au démarrage du conteneur (une image, tous les environnements).
   env = {

@@ -109,7 +109,7 @@ Sondes utilisées par le smoke test :
 
 | Service | Sonde |
 |---|---|
-| frontend | `GET /healthz` (nginx) |
+| frontend | `GET /health` (nginx) |
 | backend | `GET /actuator/health` |
 | keycloak | `GET /realms/pa-tournament/.well-known/openid-configuration` |
 | worker | condition `Ready` de la révision (pas d'ingress public) |

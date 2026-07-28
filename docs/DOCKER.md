@@ -168,7 +168,7 @@ Ports : tous les services écoutent sur **8080**, ce qu'attend Cloud Run.
 # frontend
 docker build -t pa-frontend:test frontend
 docker run --rm -p 8080:8080 -e API_URL=https://api.exemple.fr pa-frontend:test
-curl localhost:8080/healthz      # → ok
+curl localhost:8080/health      # → ok
 curl localhost:8080/config.js    # → window.__APP_CONFIG__ avec les bonnes URLs
 
 # worker (l'erreur de configuration prouve que le binaire tourne bien sur distroless)
