@@ -264,11 +264,11 @@ module "backend" {
     KEYCLOAK_ISSUER_URI        = "${local.auth_origin}/realms/pa-tournament"
     APP_CORS_ALLOWED_ORIGINS   = local.app_origin
     # Messagerie avec le worker : publication des demandes et vérification des
-    # jetons OIDC des livraisons push sur /internal/jobs/callback.
+    # jetons OIDC des livraisons push sur /internal/v1/jobs/callback.
     APP_PUBSUB_ENABLED          = "true"
     GCP_PROJECT_ID              = var.project_id
     PUBSUB_TOPIC_DEMANDS        = local.topic_demandes
-    PUBSUB_PUSH_AUDIENCE        = "${local.api_origin}/internal/jobs/callback"
+    PUBSUB_PUSH_AUDIENCE        = "${local.api_origin}/internal/v1/jobs/callback"
     PUBSUB_PUSH_SERVICE_ACCOUNT = google_service_account.pubsub_push.email
   }
 
@@ -334,7 +334,7 @@ module "messaging" {
   source = "../messaging"
 
   prefix               = local.prefix
-  backend_callback_url = "${local.api_origin}/internal/jobs/callback"
+  backend_callback_url = "${local.api_origin}/internal/v1/jobs/callback"
   push_service_account = google_service_account.pubsub_push.email
 }
 
