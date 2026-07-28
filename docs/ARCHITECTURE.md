@@ -3,7 +3,7 @@
 ## Vue d'ensemble
 
 ```
-                        Cloudflare DNS (CNAME → ghs.googlehosted.com, proxy désactivé)
+                     DNS du registrar (OVH) — CNAME → ghs.googlehosted.com
                                             │
         ┌───────────────────────┬───────────┴───────────┬───────────────────────┐
         │                       │                       │                       │

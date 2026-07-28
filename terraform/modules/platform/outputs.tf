@@ -62,7 +62,7 @@ output "secrets" {
 }
 
 output "dns_records" {
-  description = "Enregistrements DNS à créer chez le registrar (Cloudflare : proxy DÉSACTIVÉ)"
+  description = "Enregistrements DNS à créer chez le registrar (aucun proxy/CDN devant ces entrées)"
   value = var.domain == null ? [] : [
     for name, mapping in google_cloud_run_domain_mapping.this :
     {
