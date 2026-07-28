@@ -123,7 +123,7 @@ séparation, chaque `terraform apply` ferait régresser la production.
 2. Le worker consomme, parse le fichier selon le type de tournoi
    (`esport_5v5` ou `football_11v11`, cf. `worker/src/parser/`), regroupe les
    joueurs par équipe et publie sa réponse sur `topic-reponses`.
-3. Pub/Sub pousse la réponse sur `POST /internal/jobs/callback`, qui met à jour
+3. Pub/Sub pousse la réponse sur `POST /internal/v1/jobs/callback`, qui met à jour
    le statut du job et enregistre le résultat.
 4. Le frontend suit l'avancement via `GET /api/jobs/{id}` (`pending` →
    `processing` → `done` / `failed`, avec le message d'erreur du worker).
@@ -131,7 +131,7 @@ séparation, chaque `terraform apply` ferait régresser la production.
 
 ### Sécurité de l'endpoint de callback
 
-`/internal/jobs/callback` est exposé publiquement (Pub/Sub doit l'atteindre)
+`/internal/v1/jobs/callback` est exposé publiquement (Pub/Sub doit l'atteindre)
 mais protégé par une chaîne de sécurité distincte de celle de l'API :
 
 | Contrôle | Où |
@@ -142,6 +142,13 @@ mais protégé par une chaîne de sécurité distincte de celle de l'API :
 
 Les deux émetteurs (Google pour le callback, Keycloak pour l'API) ont chacun
 leur décodeur : ils ne doivent surtout pas être confondus.
+
+Le chemin contient un segment `v1` bien que l'endpoint soit hors API publique :
+la résolution de version d'API du backend (`usePathSegment(1)`) valide le 2e
+segment de **toutes** les routes, et un segment illisible comme version fait
+répondre 400 avant d'atteindre le controller. Sans jeton, Spring Security masque
+le problème en répondant 401 en amont — d'où un test authentifié dédié côté
+backend.
 
 Codes de retour choisis en connaissance du comportement de Pub/Sub : `2xx`
 acquitte, `4xx` abandonne le message, `5xx` demande une nouvelle livraison. Un

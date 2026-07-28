@@ -419,7 +419,7 @@ Ordre conseillé pour une montée de version globale :
 | Certificat jamais délivré | Proxy Cloudflare actif, ou domaine non vérifié | Passer le CNAME en « DNS only », vérifier le domaine dans Search Console |
 | Le worker ne consomme rien | Abonnement vide, ou révision non prête | `gcloud pubsub subscriptions pull pa-prod-worker-demandes --limit 5`, puis les logs du service |
 | Le smoke test échoue sur un service pourtant sain | **Cloud Run intercepte le chemin `/healthz`** et répond son propre 404 sans atteindre le conteneur | Utiliser `/health` (déjà le cas). Vérifié : `/healthz` → 404, `/healthz/` et `/health` → 200 |
-| `POST /internal/jobs/callback` en 400 en boucle | Contrat de messages désynchronisé entre le worker (snake_case) et le backend | Corrigé par les `@JsonProperty` de `WorkerRequest`/`WorkerResponse`, verrouillé par `WorkerContractTest` |
+| `POST /internal/v1/jobs/callback` en 400 en boucle | Contrat de messages désynchronisé entre le worker (snake_case) et le backend | Corrigé par les `@JsonProperty` de `WorkerRequest`/`WorkerResponse`, verrouillé par `WorkerContractTest` |
 | Keycloak : « container failed the configured startup probe checks » | Une option de **build** Keycloak a été passée au runtime (`KC_HEALTH_ENABLED`, `KC_HOSTNAME_STRICT_HTTPS`…) : avec `start --optimized` le conteneur sort en `exit(2)` après un simple warning | Ne passer que des options de runtime ; `KC_HOSTNAME` vide est également fatal (« hostname is not configured ») |
 
 ## Après les 90 jours de crédits
