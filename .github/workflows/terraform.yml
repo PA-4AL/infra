@@ -66,6 +66,9 @@ jobs:
       - name: Plan
         id: plan
         run: |
+          # pipefail : sans lui, `terraform plan | tee` renvoie le code de tee (0)
+          # et un plan en échec enchaîne sur un apply « incomplete plan ».
+          set -o pipefail
           terraform plan -input=false -no-color -out=tfplan | tee plan.txt
           echo 'summary<<EOF' >> $GITHUB_OUTPUT
           tail -c 60000 plan.txt >> $GITHUB_OUTPUT
