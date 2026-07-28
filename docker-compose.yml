@@ -28,12 +28,17 @@ services:
       retries: 10
 
   keycloak:
-    image: quay.io/keycloak/keycloak:26.1
+    # Même version majeure/mineure qu'en production (docker/keycloak.Dockerfile).
+    # En local on garde start-dev (base H2 embarquée, démarrage rapide) ; en prod
+    # l'image est « optimisée » et adossée à Cloud SQL.
+    image: quay.io/keycloak/keycloak:26.7.0
     command: start-dev --import-realm --http-port=8081
     environment:
       KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_ADMIN:-admin}
       KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-admin}
-      # SSO fédéré (spec §4.5) — renseigner dans infra/.env
+      # SSO fédéré (spec §4.5) : en local, renseigner infra/.env puis lancer
+      # `./scripts/keycloak-configure.sh` (l'import ne substitue pas les
+      # variables d'environnement).
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
       DISCORD_CLIENT_ID: ${DISCORD_CLIENT_ID:-}
@@ -48,7 +53,6 @@ services:
     profiles: ["full"]
     build:
       context: ../backend
-      dockerfile: ../infra/docker/backend.Dockerfile
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/${POSTGRES_DB:-pa}
       SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-pa}
@@ -66,20 +70,29 @@ services:
     profiles: ["full"]
     build:
       context: ../worker
-      dockerfile: ../infra/docker/worker.Dockerfile
+    # Le worker ne touche pas à la base : il consomme Pub/Sub et renvoie ses
+    # résultats au backend (cf. worker/src/main.rs). En local il faut donc soit
+    # un abonnement réel + GOOGLE_APPLICATION_CREDENTIALS, soit l'émulateur
+    # Pub/Sub (PUBSUB_EMULATOR_HOST). Sans cela le conteneur s'arrête avec un
+    # message d'authentification explicite.
     environment:
-      DATABASE_URL: postgres://${POSTGRES_USER:-pa}:${POSTGRES_PASSWORD:-pa}@db:5432/${POSTGRES_DB:-pa}
-    depends_on:
-      db:
-        condition: service_healthy
+      GCP_PROJECT_ID: ${GCP_PROJECT_ID:-pa-local}
+      PUBSUB_SUBSCRIPTION_DEMANDS: ${PUBSUB_SUBSCRIPTION_DEMANDS:-projects/pa-local/subscriptions/pa-local-worker-demandes}
+      PUBSUB_TOPIC_RESPONSES: ${PUBSUB_TOPIC_RESPONSES:-projects/pa-local/topics/pa-local-reponses}
+      PUBSUB_EMULATOR_HOST: ${PUBSUB_EMULATOR_HOST:-}
+      RUST_LOG: ${RUST_LOG:-info}
 
   frontend:
     profiles: ["full"]
     build:
       context: ../frontend
-      args:
-        VITE_API_URL: http://localhost:8080
-        VITE_KEYCLOAK_URL: http://localhost:8081
+    # Config injectée au DÉMARRAGE (docker/40-app-config.sh) : la même image
+    # sert en local et en production, aucun rebuild pour changer d'URL.
+    environment:
+      API_URL: http://localhost:8080
+      KEYCLOAK_URL: http://localhost:8081
+      KEYCLOAK_REALM: pa-tournament
+      KEYCLOAK_CLIENT_ID: pa-frontend
     ports:
       - "3000:8080"
     depends_on:
