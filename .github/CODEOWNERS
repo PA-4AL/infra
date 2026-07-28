@@ -1,0 +1,6 @@
+# Relecteurs par défaut : toute PR leur est proposée automatiquement.
+* @AlexandreDjazz @Basile-Paoli @Spatulox
+
+# L'IAC touche au réseau, à la base et aux accès : relecture systématique.
+/terraform/ @AlexandreDjazz
+/.github/workflows/ @AlexandreDjazz

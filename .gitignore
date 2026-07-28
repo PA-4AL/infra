@@ -1,3 +1,18 @@
 .idea/
 *.env
 .env
+
+# ---- Terraform ----
+# Répertoires de travail et plans (régénérés par `terraform init` / `plan`).
+**/.terraform/
+*.tfplan
+
+# États : celui des environnements vit dans GCS ; celui du bootstrap est local
+# et NE DOIT PAS être committé (identifiants de ressources, valeurs sensibles).
+*.tfstate
+*.tfstate.*
+
+# Variables locales éventuelles (les tfvars versionnés ne contiennent aucun secret).
+*.auto.tfvars
+override.tf
+override.tf.json
