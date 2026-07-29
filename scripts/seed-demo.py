@@ -20,10 +20,13 @@ devient propriétaire des tournois créés.
 
 from __future__ import annotations
 
+import base64
+import io
 import json
 import os
 import random
 import sys
+import time
 import urllib.error
 import urllib.request
 
@@ -55,51 +58,87 @@ PRENOMS = [
     "Louis", "Alice", "Rayan", "Mila", "Hugo", "Anna", "Nathan", "Zoé",
 ]
 
+# Pseudos de joueurs : c'est ce qui remplit la colonne « Pseudo » du fichier
+# importé, et donc la feuille Équipes de l'export.
+PSEUDOS = [
+    "zephyr", "kaze", "nyx", "vortex", "ember", "quasar", "onyx", "lynx",
+    "raven", "pyro", "drift", "specter", "havoc", "cipher", "nomad", "blitz",
+    "sable", "ronin", "flux", "talon", "vega", "orbit", "shade", "pulse",
+]
+
+# Rangs en jeu (colonne « Rang »). Ils n'existaient nulle part en base avant la
+# matérialisation des imports : c'est le fichier Excel qui les apporte.
+RANGS = ["Fer", "Bronze", "Argent", "Or", "Platine", "Diamant", "Maître", "Radiant"]
+
 TOURNOIS = [
     {
         "name": "Valorant Champions Series — Qualifier Paris",
         "description": "Qualification ouverte européenne, format élimination directe. "
                        "Les deux finalistes accèdent au tournoi principal.",
         "game": "Valorant", "best_of": 3, "team_size": 5,
-        "participants": 8, "etat": "termine",
+        "participants": 8, "etat": "termine", "format": "single_elim",
     },
     {
         "name": "Rift Masters — Split Été 2026",
         "description": "Compétition League of Legends sur trois week-ends. "
                        "Phase finale en élimination directe.",
         "game": "League of Legends", "best_of": 5, "team_size": 5,
-        "participants": 8, "etat": "termine",
+        "participants": 8, "etat": "termine", "format": "single_elim",
     },
     {
         "name": "PA Major CS2 — Qualification EU",
         "description": "Counter-Strike 2, seize équipes, un seul billet pour le Major.",
         "game": "Counter-Strike 2", "best_of": 3, "team_size": 5,
-        "participants": 16, "etat": "en_cours",
+        "participants": 16, "etat": "en_cours", "format": "single_elim",
     },
     {
         "name": "Aerial Cup — Rocket League 3v3",
         "description": "Tournoi hebdomadaire Rocket League, ouvert à tous les niveaux.",
         "game": "Rocket League", "best_of": 5, "team_size": 3,
-        "participants": 8, "etat": "en_cours",
+        "participants": 8, "etat": "en_cours", "format": "single_elim",
     },
     {
         "name": "Overwatch Champions Series — PA Invitational",
         "description": "Huit équipes invitées, Overwatch 2. Les inscriptions "
                        "ferment 24 h avant le coup d'envoi.",
         "game": "Overwatch 2", "best_of": 3, "team_size": 5,
-        "participants": 8, "etat": "inscriptions",
+        "participants": 8, "etat": "inscriptions", "format": "double_elim",
     },
     {
         "name": "Ancients Open — Dota 2",
         "description": "Tournoi Dota 2 ouvert, seize équipes maximum.",
         "game": "Dota 2", "best_of": 3, "team_size": 5,
-        "participants": 12, "etat": "inscriptions",
+        "participants": 12, "etat": "inscriptions", "format": "double_elim",
     },
     {
         "name": "Apex Predator Trials",
         "description": "Apex Legends en trios, élimination directe.",
         "game": "Apex Legends", "best_of": 3, "team_size": 3,
-        "participants": 8, "etat": "inscriptions",
+        "participants": 8, "etat": "inscriptions", "format": "round_robin",
+    },
+    # Les trois tournois suivants existent pour montrer chaque format **joué**,
+    # avec un classement figé : un format qu'on ne voit qu'à l'état de tableau
+    # vide ne prouve pas qu'il fonctionne.
+    {
+        "name": "Nexus Clash — Élimination double",
+        "description": "Huit équipes, double élimination : une première défaite "
+                       "renvoie dans le tableau des perdants, la seconde élimine.",
+        "game": "Valorant", "best_of": 3, "team_size": 5,
+        "participants": 8, "etat": "termine", "format": "double_elim",
+    },
+    {
+        "name": "Atlas League — Round robin",
+        "description": "Six équipes, toutes les rencontres. Le classement se fait "
+                       "aux victoires, sans élimination.",
+        "game": "Counter-Strike 2", "best_of": 1, "team_size": 5,
+        "participants": 6, "etat": "termine", "format": "round_robin",
+    },
+    {
+        "name": "Vertex Open — Double élimination en cours",
+        "description": "Douze équipes, double élimination. Tournoi en cours : "
+                       "le tableau des perdants se remplit.",
+        "game": "Overwatch 2", "best_of": 3, "team_size": 5,
+        "participants": 12, "etat": "en_cours", "format": "double_elim",
     },
 ]
 
@@ -151,7 +190,9 @@ def creer_tournoi(spec: dict) -> str:
         "name": spec["name"],
         "description": spec["description"],
         "games": [{"name": spec["game"], "bestOf": spec["best_of"]}],
-        "format": "single_elim",
+        # Le format est fixé à la création et ne se redemande plus ensuite :
+        # l'écran Bracket applique celui de la phase.
+        "format": spec["format"],
         "teamSize": spec["team_size"],
         "maxParticipants": spec["participants"],
         "visibility": "public",
@@ -166,7 +207,68 @@ def inscrire_participants(tid: str, noms: list[str]) -> None:
         exiger(code in (200, 201), f"inscription de « {nom} » : HTTP {code} — {corps}")
 
 
+def construire_xlsx(equipes: dict[str, list[tuple[str, str]]]) -> str:
+    """Classeur au format attendu par le worker : Équipe · Pseudo · Rang.
+
+    Le fichier est le **seul** chemin par lequel un rang en jeu entre dans la
+    base : aucun endpoint ne permet de le saisir. Passer par l'import exerce donc
+    toute la chaîne — Pub/Sub, worker Rust, matérialisation — au lieu de simuler
+    son résultat.
+    """
+    from openpyxl import Workbook
+
+    classeur = Workbook()
+    feuille = classeur.active
+    feuille.title = "Équipes"
+    feuille.append(["Équipe", "Pseudo", "Rang"])
+    for equipe, joueurs in equipes.items():
+        for pseudo, rang in joueurs:
+            feuille.append([equipe, pseudo, rang])
+
+    tampon = io.BytesIO()
+    classeur.save(tampon)
+    return base64.b64encode(tampon.getvalue()).decode()
+
+
+def roster(noms: list[str], taille: int) -> dict[str, list[tuple[str, str]]]:
+    """Compose un effectif par équipe : pseudos uniques, rangs plausibles."""
+    equipes: dict[str, list[tuple[str, str]]] = {}
+    for index, nom in enumerate(noms):
+        joueurs = []
+        for place in range(taille):
+            # Pseudo dérivé de la position : unique globalement, donc un même
+            # joueur n'est pas rattaché par erreur à deux équipes différentes.
+            base = PSEUDOS[(index * taille + place) % len(PSEUDOS)]
+            joueurs.append((f"{base}{index}{place}", random.choice(RANGS)))
+        equipes[nom] = joueurs
+    return equipes
+
+
+def importer_equipes(tid: str, noms: list[str], taille: int) -> int:
+    """Importe les équipes par un vrai .xlsx et attend la fin du traitement."""
+    fichier = construire_xlsx(roster(noms, taille))
+    code, corps = appel("POST", "/api/v1/teams/import", {
+        "tournamentType": "esport_5v5",
+        "fileBase64": fichier,
+        "tournamentId": tid,
+    })
+    exiger(code in (200, 201), f"import des équipes : HTTP {code} — {corps}")
+
+    job = corps["id"]
+    for _ in range(40):
+        code, etat = appel("GET", f"/api/v1/jobs/{job}")
+        exiger(code == 200, f"suivi du job {job} : HTTP {code}")
+        if etat["status"] == "done":
+            resultat = etat.get("result") or {}
+            return int(resultat.get("team_count") or len(noms))
+        if etat["status"] == "failed":
+            sys.exit(f"ÉCHEC — import {job} : {etat.get('error')}")
+        time.sleep(1.5)
+    sys.exit(f"ÉCHEC — import {job} toujours en cours après une minute")
+
+
 def generer_bracket(tid: str) -> dict:
+    # Corps vide : le backend applique le format porté par la phase.
     code, corps = appel("POST", f"/api/v1/tournaments/{tid}/bracket/generate", {})
     exiger(code == 200, f"génération du bracket : HTTP {code} — {corps}")
     return corps
@@ -229,8 +331,13 @@ def main() -> None:
         random.shuffle(orgs)
         noms = [orgs[i % len(orgs)] + (f" {spec['game'][:2].upper()}" if i >= len(orgs) else "")
                 for i in range(spec["participants"])]
-        inscrire_participants(tid, noms)
-        print(f"  + « {spec['name']} » — {spec['participants']} équipes", end="")
+        # Import d'un vrai .xlsx plutôt qu'une inscription directe : c'est le seul
+        # chemin qui apporte les pseudos ET les rangs en jeu, et il exerce toute
+        # la chaîne asynchrone (Pub/Sub → worker → matérialisation). Les équipes
+        # ainsi créées sont inscrites confirmées d'emblée.
+        importees = importer_equipes(tid, noms, spec["team_size"])
+        print(f"  + « {spec['name']} » — {importees} équipes importées "
+              f"({spec['format']})", end="")
 
         if spec["etat"] == "inscriptions":
             print(" — inscriptions ouvertes")
@@ -241,6 +348,10 @@ def main() -> None:
         # « en cours » : on s'arrête avant les deux derniers tours pour laisser
         # des matchs à jouer pendant la démonstration.
         limite = None if spec["etat"] == "termine" else max(1, nb_rounds - 2)
+        if spec["format"] == "round_robin" and spec["etat"] != "termine":
+            # En round robin les journées sont indépendantes : réserver « les deux
+            # derniers tours » n'a pas le même sens qu'en arbre, on joue la moitié.
+            limite = max(1, nb_rounds // 2)
         joues = jouer(tid, limite)
         total_matchs += joues
         print(f" — bracket {nb_rounds} tours, {joues} match(s) joué(s)"
