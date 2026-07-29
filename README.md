@@ -33,6 +33,7 @@ exploitation au quotidien : [`docs/EXPLOITATION.md`](docs/EXPLOITATION.md).
 
 | Document | Contenu |
 |---|---|
+| [`docs/adr/`](docs/adr/) | **Décisions d'architecture** (ADR) — pourquoi chaque choix structurant |
 | [`docs/EXPLOITATION.md`](docs/EXPLOITATION.md) | **Ce qui tourne en production**, rôle de chaque service et manipulations courantes |
 | [`docs/DEPLOY.md`](docs/DEPLOY.md) | **Runbook de mise en production**, de zéro au domaine en HTTPS |
 | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | Architecture cible et justification des choix |
