@@ -43,3 +43,4 @@ Chaque décision est consignée **dans le repo qu'elle concerne** :
 | [0006](0006-terraform-ne-gere-pas-les-images.md) | Terraform ne décide pas des versions d'images | 2026-07-28 | accepté |
 | [0007](0007-github-flow.md) | GitHub Flow plutôt que GitFlow | 2026-07-28 | accepté |
 | [0008](0008-bastion-plutot-que-ip-publique-bdd.md) | Bastion arrêté par défaut pour l'accès à la base | 2026-07-29 | accepté |
+| [0009](0009-budget-de-connexions-a-la-base.md) | Borner les pools de connexions, et vérifier le budget au `plan` | 2026-07-29 | accepté |
