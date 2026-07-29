@@ -76,6 +76,23 @@ variable "db_deletion_protection" {
   default = false
 }
 
+# Budget de connexions à la base. Déclarées ici pour être pilotables depuis
+# terraform.tfvars : une variable seulement présente dans le tfvars sans être
+# déclarée au module racine est ignorée avec un simple avertissement — piège
+# déjà rencontré sur ce projet avec les arbitrages de coût.
+variable "db_max_connections" {
+  type    = number
+  default = 60
+}
+variable "backend_db_pool_size" {
+  type    = number
+  default = 3
+}
+variable "keycloak_db_pool_size" {
+  type    = number
+  default = 5
+}
+
 # Bastion d'administration (accès à la base depuis un poste de développement).
 variable "bastion_enabled" {
   type    = bool
@@ -112,6 +129,10 @@ module "platform" {
   db_tier                = var.db_tier
   db_deletion_protection = var.db_deletion_protection
   subnet_cidr            = "10.20.0.0/24"
+
+  db_max_connections    = var.db_max_connections
+  backend_db_pool_size  = var.backend_db_pool_size
+  keycloak_db_pool_size = var.keycloak_db_pool_size
 
   bastion_enabled           = var.bastion_enabled
   bastion_ssh_source_ranges = var.bastion_ssh_source_ranges

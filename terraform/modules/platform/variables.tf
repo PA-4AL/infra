@@ -77,6 +77,36 @@ variable "max_instances" {
   default     = 3
 }
 
+# ---------------------------------------------------------------------------
+# Budget de connexions à la base — voir le calcul dans main.tf
+#
+# Une ressource `terraform_data` vérifie la cohérence de ces quatre valeurs au
+# `plan` : un budget intenable échoue avant d'atteindre la production.
+# ---------------------------------------------------------------------------
+variable "db_max_connections" {
+  description = "Plafond PostgreSQL (le défaut d'un f1-micro, ~25, est trop bas pour plusieurs révisions Cloud Run)"
+  type        = number
+  default     = 60
+}
+
+variable "backend_db_pool_size" {
+  description = "Connexions HikariCP par instance de backend (défaut Spring : 10, bien trop pour un f1-micro)"
+  type        = number
+  default     = 3
+}
+
+variable "keycloak_db_pool_size" {
+  description = "Connexions Agroal par instance de Keycloak (défaut Keycloak : 100)"
+  type        = number
+  default     = 5
+}
+
+variable "db_connections_reservees_humains" {
+  description = "Marge pour les accès d'exploitation : tunnel bastion, WebStorm, psql"
+  type        = number
+  default     = 8
+}
+
 variable "worker_log_level" {
   description = "Niveau de log du worker Rust"
   type        = string
