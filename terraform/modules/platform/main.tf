@@ -115,6 +115,49 @@ module "database" {
   network_id          = module.network.network_id
   psa_connection      = module.network.psa_connection
   deletion_protection = var.db_deletion_protection
+  max_connections     = var.db_max_connections
+}
+
+# ---------------------------------------------------------------------------
+# Budget de connexions à la base
+#
+# Cloud Run démultiplie les pools : chaque instance a le sien, et pendant un
+# déploiement l'ancienne révision et la nouvelle tournent en même temps. Le
+# calcul doit donc se faire sur le nombre MAXIMAL d'instances, pas sur le
+# nombre habituel — c'est la leçon d'une panne de production, où le backend ne
+# démarrait plus faute de connexion disponible pour Liquibase.
+#
+#   backend   : max_instances × backend_db_pool_size
+#   keycloak  : 2             × keycloak_db_pool_size
+#   humains   : bastion, WebStorm, psql — quelques unités
+#   réserve   : PostgreSQL garde 3 connexions pour les rôles privilégiés
+#
+# Le total doit rester sous db_max_connections avec de la marge. Doubler le
+# facteur (déploiement en cours) fait partie du calcul.
+# ---------------------------------------------------------------------------
+locals {
+  connexions_max_theoriques = (
+    var.max_instances * var.backend_db_pool_size * 2 # ×2 : deux révisions en vol
+    + 2 * var.keycloak_db_pool_size * 2
+    + var.db_connections_reservees_humains
+    + 3
+  )
+}
+
+# Un plan qui passe alors que le budget est intenable ne rend service à
+# personne : autant échouer ici, avec le calcul sous les yeux.
+resource "terraform_data" "budget_de_connexions" {
+  lifecycle {
+    precondition {
+      condition = local.connexions_max_theoriques <= var.db_max_connections
+      error_message = join(" ", [
+        "Budget de connexions dépassé : ${local.connexions_max_theoriques} nécessaires",
+        "au pire cas (déploiement en cours) pour ${var.db_max_connections} disponibles.",
+        "Réduire backend_db_pool_size / keycloak_db_pool_size / max_instances,",
+        "ou augmenter db_max_connections — en vérifiant que la RAM du gabarit suit.",
+      ])
+    }
+  }
 }
 
 # ---------------------------------------------------------------------------
@@ -225,6 +268,13 @@ module "keycloak" {
       KC_PROXY_HEADERS            = "xforwarded"
       KC_HTTP_ENABLED             = "true"
       KC_BOOTSTRAP_ADMIN_USERNAME = var.keycloak_admin_username
+      # Sans plafond, Keycloak 26 ouvre jusqu'à 100 connexions par instance —
+      # à lui seul, il peut assécher un db-f1-micro. `db-pool-*` sont bien des
+      # options de RUNTIME : les passer à une image `start --optimized` est sûr,
+      # contrairement aux options de build (cf. commentaire ci-dessus).
+      KC_DB_POOL_INITIAL_SIZE = "1"
+      KC_DB_POOL_MIN_SIZE     = "1"
+      KC_DB_POOL_MAX_SIZE     = tostring(var.keycloak_db_pool_size)
     },
     # Le hostname n'est fixé que si l'URL publique est connue de façon fiable
     # (domaine, ou origine relevée après le premier apply). Sinon on désactive
@@ -261,8 +311,17 @@ module "backend" {
   env = {
     SPRING_DATASOURCE_URL      = "jdbc:postgresql://${module.database.private_ip}:5432/pa"
     SPRING_DATASOURCE_USERNAME = module.database.app_user
-    KEYCLOAK_ISSUER_URI        = "${local.auth_origin}/realms/pa-tournament"
-    APP_CORS_ALLOWED_ORIGINS   = local.app_origin
+    # HikariCP ouvre 10 connexions par défaut, par instance : de quoi dépasser
+    # le plafond d'un f1-micro à lui seul dès 3 instances. Ce service fait des
+    # requêtes courtes, un pool étroit suffit largement.
+    SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE = tostring(var.backend_db_pool_size)
+    SPRING_DATASOURCE_HIKARI_MINIMUM_IDLE      = "1"
+    # Rendre une connexion inutilisée plutôt que la garder immobilisée : sur une
+    # base aussi petite, les slots sont une ressource partagée.
+    SPRING_DATASOURCE_HIKARI_IDLE_TIMEOUT = "30000"
+    SPRING_DATASOURCE_HIKARI_MAX_LIFETIME = "600000"
+    KEYCLOAK_ISSUER_URI                   = "${local.auth_origin}/realms/pa-tournament"
+    APP_CORS_ALLOWED_ORIGINS              = local.app_origin
     # Messagerie avec le worker : publication des demandes et vérification des
     # jetons OIDC des livraisons push sur /internal/v1/jobs/callback.
     APP_PUBSUB_ENABLED          = "true"

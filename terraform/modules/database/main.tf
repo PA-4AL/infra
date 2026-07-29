@@ -36,6 +36,30 @@ variable "disk_size" {
   type    = number
   default = 10
 }
+variable "max_connections" {
+  type        = number
+  description = <<-EOT
+    Plafond de connexions PostgreSQL.
+
+    La valeur par défaut d'un db-f1-micro est d'environ 25, ce qui est
+    insuffisant dès que plusieurs instances Cloud Run coexistent — pendant un
+    déploiement, l'ancienne et la nouvelle révision tournent en parallèle. En
+    production, le symptôme observé a été un backend incapable de démarrer :
+    « FATAL: remaining connection slots are reserved for roles with privileges
+    of the pg_use_reserved_connections role », levé par Liquibase.
+
+    Ce plafond n'est qu'un plafond : la consommation réelle est bornée par la
+    taille des pools côté services (voir modules/platform). Le garder modeste
+    reste nécessaire, car chaque connexion coûte de la mémoire sur une instance
+    qui n'en a que 0,6 Go.
+  EOT
+  default     = 60
+
+  validation {
+    condition     = var.max_connections >= 25 && var.max_connections <= 200
+    error_message = "Entre 25 (défaut d'un f1-micro) et 200 (au-delà, la RAM d'un gabarit partagé ne suit pas)."
+  }
+}
 
 resource "google_sql_database_instance" "main" {
   name                = "${var.prefix}-db"
@@ -82,6 +106,11 @@ resource "google_sql_database_instance" "main" {
       # Les traces de connexion facilitent le diagnostic des accès Cloud Run.
       name  = "log_connections"
       value = "on"
+    }
+
+    database_flags {
+      name  = "max_connections"
+      value = tostring(var.max_connections)
     }
   }
 
