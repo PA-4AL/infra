@@ -114,3 +114,36 @@ variable "auth_origin_override" {
   type        = string
   default     = null
 }
+
+# ---------------------------------------------------------------------------
+# Bastion d'administration — outil d'exploitation, pas une brique de la plateforme
+# ---------------------------------------------------------------------------
+variable "bastion_enabled" {
+  description = "Crée une VM bastion (arrêtée) pour joindre Cloud SQL en SSH depuis un poste"
+  type        = bool
+  default     = false
+}
+
+variable "bastion_zone" {
+  description = "Zone de la VM bastion"
+  type        = string
+  default     = "europe-west1-b"
+}
+
+variable "bastion_ssh_source_ranges" {
+  description = "Adresses autorisées à joindre le port 22 du bastion"
+  type        = list(string)
+  default     = []
+}
+
+variable "bastion_ssh_public_key" {
+  description = "Clé publique OpenSSH déposée sur le bastion"
+  type        = string
+  default     = ""
+}
+
+variable "bastion_ssh_user" {
+  description = "Utilisateur Linux associé à la clé"
+  type        = string
+  default     = "alex"
+}

@@ -339,6 +339,24 @@ module "messaging" {
 }
 
 # ---------------------------------------------------------------------------
+# Bastion d'administration (optionnel) — accès à Cloud SQL depuis un poste
+# ---------------------------------------------------------------------------
+module "bastion" {
+  source = "../bastion"
+  count  = var.bastion_enabled ? 1 : 0
+
+  prefix     = local.prefix
+  region     = var.region
+  zone       = var.bastion_zone
+  network_id = module.network.network_id
+  subnet_id  = module.network.subnet_id
+
+  ssh_source_ranges = var.bastion_ssh_source_ranges
+  ssh_public_key    = var.bastion_ssh_public_key
+  ssh_user          = var.bastion_ssh_user
+}
+
+# ---------------------------------------------------------------------------
 # Domaines personnalisés + certificats gérés par Google (gratuits)
 # ---------------------------------------------------------------------------
 locals {
