@@ -35,7 +35,7 @@ délivrance du certificat (jusqu'à 24 h dans le pire cas, en général 15 min).
 |---|---|---|
 | Compte Google Cloud | <https://console.cloud.google.com> | Les 300 $ de crédits d'essai couvrent 90 jours. Une carte bancaire est demandée mais rien n'est débité sans passage explicite en compte payant. |
 | Compte Docker Hub | <https://hub.docker.com> | Créer un **Access Token** (Account settings → Personal access tokens), permissions *Read & Write*. Ne jamais utiliser le mot de passe du compte. |
-| Nom de domaine | <https://dash.cloudflare.com> (Registrar) | ~10 €/an en `.com`, moins en `.dev`/`.fr`. Garder le DNS chez Cloudflare. |
+| Nom de domaine | n'importe quel registrar — le projet utilise **OVH** (`patournament.fr`) | ~2-3 €/an en `.ovh`, ~7-12 € en `.fr`/`.com`. Seule exigence : pouvoir créer un TXT et trois CNAME. |
 
 > Le compte Docker Hub sert à publier les livrables (critère « conteneurs mis en
 > ligne sur un registre »). Artifact Registry reste la source utilisée par
@@ -326,7 +326,7 @@ et un login aboutit.
 
 1. **Vérifier la propriété du domaine** (obligatoire pour Cloud Run) :
    <https://search.google.com/search-console> → « Préfixe de domaine » → ajouter
-   le TXT fourni dans le DNS Cloudflare → valider.
+   le TXT fourni dans la zone DNS du registrar → valider.
 
 2. **Déclarer le domaine dans l'IAC** — décommenter dans `terraform.tfvars` :
 
@@ -341,17 +341,28 @@ et un login aboutit.
    terraform output -json dns_records | python3 -m json.tool
    ```
 
-3. **Créer les enregistrements DNS** dans Cloudflare, en respectant ce qui est
+3. **Créer les enregistrements DNS** chez le registrar, en respectant ce qui est
    affiché (en général 3 CNAME vers `ghs.googlehosted.com`) :
 
-   | Nom | Type | Cible | Proxy |
-   |---|---|---|---|
-   | `app` | CNAME | `ghs.googlehosted.com` | **DNS only (nuage gris)** |
-   | `api` | CNAME | `ghs.googlehosted.com` | **DNS only** |
-   | `auth` | CNAME | `ghs.googlehosted.com` | **DNS only** |
+   | Sous-domaine | Type | Cible |
+   |---|---|---|
+   | `app` | CNAME | `ghs.googlehosted.com.` |
+   | `api` | CNAME | `ghs.googlehosted.com.` |
+   | `auth` | CNAME | `ghs.googlehosted.com.` |
 
-   > Le proxy orange de Cloudflare **doit être désactivé** : sinon Google ne peut
-   > pas valider le domaine et le certificat n'est jamais délivré.
+   Chez **OVH** : *Domaines* → `patournament.fr` → **Zone DNS** → « Ajouter une
+   entrée ». Le point final après `.com` marque un nom absolu (OVH l'ajoute
+   généralement seul, vérifier le résultat). Ne pas toucher aux entrées par
+   défaut (A de la racine, MX).
+
+   > Si le DNS est derrière un **proxy/CDN** (Cloudflare en mode orange, par
+   > exemple), il faut le désactiver pour ces trois entrées : sinon Google ne
+   > peut pas valider le domaine et le certificat n'est jamais délivré. Sans
+   > proxy — cas d'OVH — il n'y a rien à faire.
+
+   > L'app est servie sur `app.<domaine>`, pas sur la racine : un CNAME est
+   > interdit sur un domaine apex. Pour servir la racine, Cloud Run fournit à la
+   > place 4 enregistrements A et 4 AAAA.
 
 4. **Attendre le certificat** (15 min en général) :
 
@@ -416,7 +427,7 @@ Ordre conseillé pour une montée de version globale :
 | Backend en 401 sur tous les appels | `KEYCLOAK_ISSUER_URI` ne correspond pas à l'issuer réel du token | Vérifier que `KC_HOSTNAME` et l'URI d'issuer utilisent la même origine (domaine, pas run.app) |
 | Erreur CORS dans le navigateur | `APP_CORS_ALLOWED_ORIGINS` ≠ origine réelle du frontend | Corriger `domain` dans les tfvars et réappliquer |
 | Le login Keycloak boucle ou refuse la redirection | URIs de redirection non mises à jour | Rejouer `scripts/keycloak-configure.sh` avec le bon `APP_ORIGIN` |
-| Certificat jamais délivré | Proxy Cloudflare actif, ou domaine non vérifié | Passer le CNAME en « DNS only », vérifier le domaine dans Search Console |
+| Certificat jamais délivré | Domaine non vérifié dans Search Console, CNAME absent ou masqué par un proxy/CDN | Vérifier le domaine, contrôler la résolution (`dig app.<domaine> CNAME`), désactiver tout proxy sur ces entrées |
 | Le worker ne consomme rien | Abonnement vide, ou révision non prête | `gcloud pubsub subscriptions pull pa-prod-worker-demandes --limit 5`, puis les logs du service |
 | Le smoke test échoue sur un service pourtant sain | **Cloud Run intercepte le chemin `/healthz`** et répond son propre 404 sans atteindre le conteneur | Utiliser `/health` (déjà le cas). Vérifié : `/healthz` → 404, `/healthz/` et `/health` → 200 |
 | `POST /internal/v1/jobs/callback` en 400 en boucle | Contrat de messages désynchronisé entre le worker (snake_case) et le backend | Corrigé par les `@JsonProperty` de `WorkerRequest`/`WorkerResponse`, verrouillé par `WorkerContractTest` |

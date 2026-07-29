@@ -3,9 +3,9 @@
 project_id = "pa-tournament-4al"
 region     = "europe-west1"
 
-# Domaine racine ; laisser commenté tant qu'il n'est pas acheté et vérifié
-# (les services répondent alors sur leurs URLs *.run.app).
-# domain = "exemple.fr"
+# Domaine racine (OVH). Les origines publiques en découlent :
+#   app.patournament.fr · api.patournament.fr · auth.patournament.fr
+domain = "patournament.fr"
 
 # Sortie `sa_deploy_email` du bootstrap.
 deployer_service_account = "gh-deploy@pa-tournament-4al.iam.gserviceaccount.com"
@@ -34,12 +34,3 @@ worker_min_instances = 1
 # Environnement temporaire, destruction prévue à la fin de la période : la
 # protection empêcherait `terraform destroy` de nettoyer la base.
 db_deletion_protection = false
-
-# --- Seconde passe : URLs réelles ---------------------------------------------
-# Les URLs Cloud Run de ce projet utilisent l'ancien format à hash, non
-# devinable : sans ces overrides, le CORS du backend et l'issuer Keycloak
-# pointeraient dans le vide (cf. docs/DEPLOY.md, « seconde passe »).
-# À supprimer dès que `domain` sera renseigné.
-app_origin_override  = "https://pa-prod-frontend-2tazt6x2ta-ew.a.run.app"
-api_origin_override  = "https://pa-prod-backend-2tazt6x2ta-ew.a.run.app"
-auth_origin_override = "https://pa-prod-keycloak-2tazt6x2ta-ew.a.run.app"
