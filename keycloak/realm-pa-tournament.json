@@ -8,6 +8,12 @@
   "registrationEmailAsUsername": false,
   "loginWithEmailAllowed": true,
   "resetPasswordAllowed": true,
+  "rememberMe": true,
+  "ssoSessionIdleTimeout": 43200,
+  "ssoSessionMaxLifespan": 86400,
+  "ssoSessionIdleTimeoutRememberMe": 86400,
+  "ssoSessionMaxLifespanRememberMe": 172800,
+  "accessTokenLifespan": 300,
   "roles": {
     "realm": [
       { "name": "player", "description": "Joueur : inscription, profil, participation" },

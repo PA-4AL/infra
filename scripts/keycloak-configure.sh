@@ -55,6 +55,36 @@ if [ -z "$TOKEN" ] || [ "$TOKEN" = "null" ]; then
 fi
 
 # ---------------------------------------------------------------------------
+# 0) Durée des sessions
+#
+# Les défauts de Keycloak déconnectent au bout de 30 minutes d'inactivité, pour
+# 10 heures au maximum. Exigence du projet : rester connecté au moins 12 heures
+# sans avoir à se réauthentifier, y compris après une longue inactivité — d'où
+# une inactivité tolérée de 12 h et une session plafonnée à 24 h.
+#
+# La durée du jeton d'accès reste courte (5 min) : le frontend le renouvelle en
+# silence avant chaque appel (`updateToken(30)`), et un jeton volé expire vite.
+# C'est la session, pas le jeton, qui porte les 12 heures.
+#
+# « Se souvenir de moi » est activé : les utilisateurs qui le cochent tiennent
+# 24 h d'inactivité et 48 h en tout.
+#
+# Ces valeurs figurent aussi dans keycloak/realm-pa-tournament.json, mais
+# l'import est ignoré quand le realm existe déjà : sans ce bloc, la production
+# resterait sur les défauts.
+# ---------------------------------------------------------------------------
+echo "→ realm $REALM : durée des sessions"
+REALM_CONF=$(api GET "/$REALM")
+api PUT "/$REALM" "$(echo "$REALM_CONF" | jq -c '
+    .rememberMe                      = true
+  | .ssoSessionIdleTimeout           = 43200
+  | .ssoSessionMaxLifespan           = 86400
+  | .ssoSessionIdleTimeoutRememberMe = 86400
+  | .ssoSessionMaxLifespanRememberMe = 172800
+  | .accessTokenLifespan             = 300')" >/dev/null
+echo "  inactivité tolérée 12 h · session 24 h max · jeton d'accès 5 min"
+
+# ---------------------------------------------------------------------------
 # 1) Client public : URIs de redirection + origines CORS
 # ---------------------------------------------------------------------------
 echo "→ client $FRONTEND_CLIENT : ajout de $APP_ORIGIN"
