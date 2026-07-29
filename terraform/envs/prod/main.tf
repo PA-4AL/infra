@@ -76,6 +76,24 @@ variable "db_deletion_protection" {
   default = false
 }
 
+# Bastion d'administration (accès à la base depuis un poste de développement).
+variable "bastion_enabled" {
+  type    = bool
+  default = false
+}
+variable "bastion_ssh_source_ranges" {
+  type    = list(string)
+  default = []
+}
+variable "bastion_ssh_public_key" {
+  type    = string
+  default = ""
+}
+variable "bastion_ssh_user" {
+  type    = string
+  default = "alex"
+}
+
 module "platform" {
   source = "../../modules/platform"
 
@@ -94,6 +112,11 @@ module "platform" {
   db_tier                = var.db_tier
   db_deletion_protection = var.db_deletion_protection
   subnet_cidr            = "10.20.0.0/24"
+
+  bastion_enabled           = var.bastion_enabled
+  bastion_ssh_source_ranges = var.bastion_ssh_source_ranges
+  bastion_ssh_public_key    = var.bastion_ssh_public_key
+  bastion_ssh_user          = var.bastion_ssh_user
 
   app_origin_override  = var.app_origin_override
   api_origin_override  = var.api_origin_override
@@ -114,3 +137,4 @@ output "dns_records" { value = module.platform.dns_records }
 output "secrets" { value = module.platform.secrets }
 output "database_private_ip" { value = module.platform.database_private_ip }
 output "pubsub" { value = module.platform.pubsub }
+output "bastion" { value = module.platform.bastion }

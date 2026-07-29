@@ -82,3 +82,13 @@ output "pubsub" {
     dlq                   = module.messaging.dlq_topic
   }
 }
+
+output "bastion" {
+  description = "Bastion d'administration (null si non activé)"
+  value = var.bastion_enabled ? {
+    nom       = module.bastion[0].name
+    zone      = module.bastion[0].zone
+    ip        = module.bastion[0].public_ip
+    db_privee = module.database.private_ip
+  } : null
+}

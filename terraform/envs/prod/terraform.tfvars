@@ -34,3 +34,16 @@ worker_min_instances = 1
 # Environnement temporaire, destruction prévue à la fin de la période : la
 # protection empêcherait `terraform destroy` de nettoyer la base.
 db_deletion_protection = false
+
+# --- Bastion d'administration -------------------------------------------------
+# VM créée ARRÊTÉE : on ne paie que le disque (~0,40 €/mois) tant qu'on ne la
+# démarre pas. Elle sert à ouvrir un tunnel SSH vers l'IP privée de Cloud SQL
+# depuis WebStorm/DataGrip (cf. docs/EXPLOITATION.md).
+bastion_enabled = true
+
+# IP publique du poste de développement. À mettre à jour si elle change
+# (adresse résidentielle dynamique) : `curl -4 -s https://ifconfig.me`.
+bastion_ssh_source_ranges = ["90.3.95.151/32"]
+
+bastion_ssh_user       = "alex"
+bastion_ssh_public_key = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIDHk98zxKs0IHMbVLDpkceuOMjcw9OEm+8zeXtU5eqMO alexandrehelleux@hotmail.fr"
