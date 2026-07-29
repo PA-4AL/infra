@@ -19,12 +19,21 @@ Keycloak        PostgreSQL                        ▼
 
 En production, ces quatre composants tournent sur Cloud Run derrière un domaine
 en HTTPS, avec une base Cloud SQL en IP privée :
-voir [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
+
+| | |
+|---|---|
+| Application | <https://app.patournament.fr> |
+| API | <https://api.patournament.fr> |
+| Identité | <https://auth.patournament.fr> |
+
+Choix techniques : [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) ·
+exploitation au quotidien : [`docs/EXPLOITATION.md`](docs/EXPLOITATION.md).
 
 ## Documentation
 
 | Document | Contenu |
 |---|---|
+| [`docs/EXPLOITATION.md`](docs/EXPLOITATION.md) | **Ce qui tourne en production**, rôle de chaque service et manipulations courantes |
 | [`docs/DEPLOY.md`](docs/DEPLOY.md) | **Runbook de mise en production**, de zéro au domaine en HTTPS |
 | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | Architecture cible et justification des choix |
 | [`docs/GIT-FLOW.md`](docs/GIT-FLOW.md) | Flow de développement (GitHub Flow), commits, PR, protections |
