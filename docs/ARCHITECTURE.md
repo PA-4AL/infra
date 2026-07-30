@@ -2,42 +2,46 @@
 
 ## Vue d'ensemble
 
-```
-                     DNS du registrar (OVH) — CNAME → ghs.googlehosted.com
-                                            │
-        ┌───────────────────────┬───────────┴───────────┬───────────────────────┐
-        │                       │                       │                       │
-  app.<domaine>           api.<domaine>           auth.<domaine>                │
-        │                       │                       │                       │
-┌───────▼────────┐     ┌────────▼───────┐     ┌─────────▼──────┐                │
-│ Cloud Run      │     │ Cloud Run      │     │ Cloud Run      │                │
-│ frontend       │────►│ backend        │◄───►│ keycloak       │                │
-│ nginx statique │ API │ Kotlin/Spring  │ JWT │ 26.7 optimisé  │                │
-│ 0 → 4          │     │ 0 → 4          │     │ 1 → 2          │                │
-└────────────────┘     └───┬────────┬───┘     └────────┬───────┘                │
-                           │        ▲                  │                        │
-              publie       │        │ push OIDC        │                        │
-                           ▼        │                  │                        │
-                 ┌─────────────┐  ┌─┴───────────┐      │   Direct VPC egress    │
-                 │ topic       │  │ topic       │      │   (pas de connecteur)  │
-                 │ demandes    │  │ reponses    │      │                        │
-                 └──────┬──────┘  └─────▲───────┘      │                        │
-                        │ pull          │ publie       │                        │
-                 ┌──────▼───────────────┴──────┐       │                        │
-                 │ Cloud Run worker (Rust)     │       │                        │
-                 │ import/export Excel, 1 → 2  │       │                        │
-                 └─────────────────────────────┘       │                        │
-                        │                              │                        │
-                        └──────────► file de rebut ◄───┘                        │
-                                                                                │
-        ┌───────────────────────────────────────────────────────────────────────▼┐
-        │ VPC pa-prod                                                            │
-        │   Cloud SQL PostgreSQL 16 — IP PRIVÉE uniquement                       │
-        │   bases : pa (Liquibase) · keycloak                                    │
-        └────────────────────────────────────────────────────────────────────────┘
+Diagrammes en Mermaid : ils sont rendus tels quels par GitHub et par les IDE
+JetBrains, donc lisibles là où on lit le code. Un schéma qui vit à côté du code
+suit ses évolutions ; une image exportée ne les suit pas.
 
-        Secret Manager · Artifact Registry · Docker Hub (livrables publics)
+```mermaid
+flowchart LR
+  N(["Navigateur"])
+
+  subgraph DNS["OVH — patournament.fr"]
+    A["app · CNAME"]
+    B["api · CNAME"]
+    C["auth · CNAME"]
+  end
+
+  subgraph RUN["Cloud Run · europe-west1"]
+    F["pa-prod-frontend<br/>nginx · 0 à 4"]
+    S["pa-prod-backend<br/>Spring Boot · 0 à 4"]
+    K["pa-prod-keycloak<br/>1 à 2 · toujours chaud"]
+  end
+
+  subgraph VPC["VPC pa-prod-vpc · 10.20.0.0/24"]
+    D[("Cloud SQL<br/>PostgreSQL 16<br/>IP privée seule")]
+  end
+
+  N --> A --> F
+  N --> B --> S
+  N --> C --> K
+  F -. "config.js au démarrage" .-> F
+  S -- "Direct VPC egress" --> D
+  K -- "Direct VPC egress" --> D
+  S -. "vérifie le jeton" .-> K
 ```
+
+Deux points que le schéma ne dit pas seul :
+
+- **le frontend n'est pas attaché au VPC** — il ne parle qu'au navigateur. Sa
+  configuration est écrite au démarrage du conteneur dans `/config.js`, ce qui
+  permet d'utiliser la même image en développement et en production ;
+- **Keycloak garde une instance chaude** : un démarrage à froid de 25 s sur
+  l'écran de connexion est la pire première impression possible.
 
 ## Décisions et justifications
 
@@ -116,6 +120,28 @@ séparation, chaque `terraform apply` ferait régresser la production.
 
 ## Flux d'un import Excel
 
+```mermaid
+flowchart LR
+  U(["Organisateur"])
+  S["pa-prod-backend"]
+  T1{{"pa-prod-demandes"}}
+  W["pa-prod-worker<br/>consommation pull"]
+  T2{{"pa-prod-reponses"}}
+  CB["/internal/v1/jobs/callback"]
+  DLQ{{"pa-prod-dlq"}}
+  D[("jobs · teams · users")]
+
+  U -- "dépose un .xlsx" --> S
+  S -- "publie" --> T1
+  T1 --> W
+  W -- "publie le résultat" --> T2
+  T2 -- "push + jeton OIDC" --> CB
+  CB --> S
+  S -- "matérialise équipes,<br/>joueurs et rangs" --> D
+  W -. "après épuisement des tentatives" .-> DLQ
+```
+
+
 1. `POST /api/v1/teams/import` (rôle `organizer` ou `admin`) avec
    `{tournamentType, fileBase64}`. Le backend trace une ligne `jobs`, publie
    `{task_id, task_type: "import_excel", payload: {tournament_type, file_base64}}`
@@ -162,6 +188,68 @@ Les fichiers circulent en base64 **dans le message** : la limite Pub/Sub de 10 M
 par message est vérifiée côté backend (`413` au-delà de ~9 Mo de base64, soit
 ~6,7 Mo de fichier). Au-delà, il faudra passer par un bucket Cloud Storage et ne
 transmettre que l'URL — ce que la colonne `jobs.file_url` prévoit déjà.
+
+## Chaîne de livraison
+
+```mermaid
+flowchart TB
+  subgraph GH["GitHub · organisation PA-4AL"]
+    R1["infra"]
+    R2["backend"]
+    R3["worker"]
+    R4["frontend"]
+  end
+
+  CI["CI — lint, tests, build, publication"]
+  WIF{{"Fédération d'identité<br/>aucune clé stockée"}}
+
+  subgraph REG["Registres"]
+    AR[("Artifact Registry<br/>source de Cloud Run")]
+    DH[("Docker Hub<br/>livrable public")]
+  end
+
+  DEP["Déploiement manuel<br/>workflow_dispatch"]
+  TF["Terraform<br/>plan sur PR · apply manuel"]
+  RUN["Cloud Run"]
+  GCS[("État Terraform<br/>bucket GCS versionné")]
+
+  R1 --> CI
+  R2 --> CI
+  R3 --> CI
+  R4 --> CI
+  CI --> WIF
+  WIF --> AR
+  CI --> DH
+  AR --> DEP --> RUN
+  R1 --> TF --> RUN
+  TF <--> GCS
+```
+
+Deux registres, deux usages : Artifact Registry alimente Cloud Run, Docker Hub rend
+le livrable consultable publiquement. La même image est poussée aux deux.
+
+Les images sont déployées **par leur empreinte** (`sha-<court>`, immuable), et
+Terraform ne décide jamais d'une version d'image : il ignore ce champ, sinon un
+`apply` ramènerait la révision précédente (cf. `docs/adr/0006`).
+
+## Budget de connexions à la base
+
+La ressource la plus rare de cette infrastructure, et celle qui a provoqué la seule
+panne de production. Cloud Run démultiplie les pools : chaque instance a le sien, et
+pendant un déploiement l'ancienne révision et la nouvelle tournent ensemble. **Le
+pire cas n'est donc pas le trafic de pointe, c'est le déploiement.**
+
+| Consommateur | Instances | Pool | Révisions | Connexions |
+|---|---|---|---|---|
+| `pa-prod-backend` | 4 | 3 | ×2 | 24 |
+| `pa-prod-keycloak` | 2 | 5 | ×2 | 20 |
+| Exploitation — bastion, WebStorm, psql | — | — | — | 8 |
+| Réserve PostgreSQL — rôles privilégiés | — | — | — | 3 |
+| **Total** pour `max_connections = 60` | | | | **55** |
+
+Une précondition Terraform refuse un plan dont le budget est intenable : augmenter
+`max_instances` sans revoir les pools ne peut plus reproduire la panne
+(cf. `docs/adr/0009`).
 
 ## Limites connues
 
