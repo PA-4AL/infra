@@ -9,11 +9,23 @@ qu'un import qui aboutit sur des données fausses.
 
 | Fichier | Ce qu'il éprouve | Mapping à choisir | Résultat attendu |
 |---|---|---|---|
+| `import-4-equipes-5-joueurs.xlsx` | **effectif complet 5v5** — 4 équipes de 5 | Équipe **A** · Pseudo **B** · Rang **C**, en-tête coché | 4 équipes, 20 joueurs |
 | `import-esport-standard.xlsx` | cas nominal | Équipe **A** · Pseudo **B** · Rang **C**, en-tête coché | 2 équipes, 6 joueurs |
 | `import-esport-colonnes-libres.xlsx` | libellés quelconques, colonnes dispersées, colonnes parasites | Équipe **B** · Pseudo **D** · Rang **E**, en-tête coché | 2 équipes, 4 joueurs |
 | `import-esport-sans-entete.xlsx` | fichier sans ligne de titres | Équipe **A** · Pseudo **B** · Rang **C**, en-tête **décoché** | 2 équipes, 4 joueurs |
 | `import-football.xlsx` | gabarit football, 5 colonnes de joueur | Équipe **A** · Nom **B** · Prénom **C** · Poste **D** · Numéro **E** | 2 équipes, 5 joueurs |
 | `import-esport-ligne-invalide.xlsx` | nom d'équipe vide en ligne 3 | Équipe **A** · Pseudo **B** · Rang **C** | **échec** : « Colonne 'Équipe' vide à la ligne 3 » |
+
+## Le fichier prêt pour une démonstration
+
+`import-4-equipes-5-joueurs.xlsx` — 4 équipes de **exactement 5 joueurs**, rangs
+plausibles, pseudos uniques. À importer dans un tournoi déclaré **5v5** : l'effectif
+correspond au format, aucune équipe n'est signalée incomplète, et l'arbre se génère
+ensuite sur 4 participants.
+
+Importé dans un tournoi d'une autre taille, les équipes sont créées quand même mais
+signalées « 5/3 » ou « 5/11 » dans le résultat du traitement — c'est un avertissement,
+pas un refus, l'organisateur seul sachant si l'effectif est normal.
 
 ## Le fichier qui compte
 
